@@ -151,7 +151,7 @@ impl Widget for TabsWidget {
         }
 
         for tab in &tabs {
-            let content = self.render_tab(tab, &state.panes, &state.mode);
+            let content = self.render_tab(tab, &state.panes, &state.mode, &state.claude_icons);
             counter += 1;
 
             output = format!("{}{}", output, content);
@@ -212,7 +212,8 @@ impl Widget for TabsWidget {
         for tab in &tabs {
             counter += 1;
 
-            let mut rendered_content = self.render_tab(tab, &state.panes, &state.mode);
+            let mut rendered_content =
+                self.render_tab(tab, &state.panes, &state.mode, &state.claude_icons);
 
             if counter < tabs.len()
                 && let Some(sep) = &self.separator
@@ -296,7 +297,13 @@ impl TabsWidget {
         &self.normal_tab_format
     }
 
-    fn render_tab(&self, tab: &TabInfo, panes: &PaneManifest, mode: &ModeInfo) -> String {
+    fn render_tab(
+        &self,
+        tab: &TabInfo,
+        panes: &PaneManifest,
+        mode: &ModeInfo,
+        claude_icons: &BTreeMap<u32, String>,
+    ) -> String {
         let formatters = self.select_format(tab, mode);
         let mut output = "".to_owned();
 
@@ -344,6 +351,16 @@ impl TabsWidget {
                     .unwrap_or_default();
 
                 content = content.replace("{focused_pane_title}", &focused_pane_title);
+            }
+
+            if content.contains("{claude_status}") {
+                let panes_for_tab: Vec<PaneInfo> =
+                    panes.panes.get(&tab.position).cloned().unwrap_or_default();
+
+                content = content.replace(
+                    "{claude_status}",
+                    &pick_claude_status(&panes_for_tab, claude_icons),
+                );
             }
 
             content = self.replace_indicators(content, tab, panes);
@@ -418,6 +435,28 @@ impl TabsWidget {
     }
 }
 
+/// Selects the status value to show on a tab from its panes. Plugin panes are
+/// ignored, since their ids share the terminal-pane id space. The focused
+/// pane's value wins; otherwise the first pane with a non-empty value wins.
+fn pick_claude_status(panes: &[PaneInfo], icons: &BTreeMap<u32, String>) -> String {
+    if let Some(focused) = panes.iter().find(|p| p.is_focused && !p.is_plugin)
+        && let Some(value) = icons.get(&focused.id)
+        && !value.is_empty()
+    {
+        return value.clone();
+    }
+
+    for pane in panes.iter().filter(|p| !p.is_plugin) {
+        if let Some(value) = icons.get(&pane.id)
+            && !value.is_empty()
+        {
+            return value.clone();
+        }
+    }
+
+    String::new()
+}
+
 pub fn get_tab_window(
     tabs: &Vec<TabInfo>,
     max_count: Option<usize>,
@@ -460,10 +499,52 @@ pub fn get_tab_window(
 
 #[cfg(test)]
 mod test {
-    use zellij_tile::prelude::TabInfo;
+    use std::collections::BTreeMap;
+    use zellij_tile::prelude::{PaneInfo, TabInfo};
 
-    use super::get_tab_window;
+    use super::{get_tab_window, pick_claude_status};
     use rstest::rstest;
+
+    fn pane(id: u32, is_focused: bool, is_plugin: bool) -> PaneInfo {
+        PaneInfo {
+            id,
+            is_focused,
+            is_plugin,
+            ..PaneInfo::default()
+        }
+    }
+
+    #[test]
+    fn pick_prefers_focused_pane_icon() {
+        let panes = vec![pane(1, false, false), pane(2, true, false)];
+        let icons = BTreeMap::from([(1, "⏳".to_owned()), (2, "🤖".to_owned())]);
+
+        assert_eq!(pick_claude_status(&panes, &icons), "🤖");
+    }
+
+    #[test]
+    fn pick_falls_back_to_first_pane_with_icon() {
+        let panes = vec![pane(1, true, false), pane(2, false, false)];
+        let icons = BTreeMap::from([(2, "🤖".to_owned())]);
+
+        assert_eq!(pick_claude_status(&panes, &icons), "🤖");
+    }
+
+    #[test]
+    fn pick_returns_empty_when_no_icons() {
+        let panes = vec![pane(1, true, false), pane(2, false, false)];
+        let icons = BTreeMap::new();
+
+        assert_eq!(pick_claude_status(&panes, &icons), "");
+    }
+
+    #[test]
+    fn pick_ignores_plugin_panes() {
+        let panes = vec![pane(5, true, true)];
+        let icons = BTreeMap::from([(5, "🤖".to_owned())]);
+
+        assert_eq!(pick_claude_status(&panes, &icons), "");
+    }
 
     #[rstest]
     #[case(

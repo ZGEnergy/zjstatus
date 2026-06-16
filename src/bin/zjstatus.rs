@@ -66,6 +66,9 @@ impl ZellijPlugin for State {
             PermissionType::ReadApplicationState,
             PermissionType::ChangeApplicationState,
             PermissionType::RunCommands,
+            // share the {claude_status} icon map across per-tab instances via a
+            // per-session file under /tmp
+            PermissionType::FullHdAccess,
         ]);
 
         subscribe(&[
@@ -105,6 +108,7 @@ impl ZellijPlugin for State {
             start_time: Local::now(),
             cache_mask: 0,
             incoming_notification: None,
+            claude_icons: BTreeMap::new(),
         };
     }
 
@@ -224,6 +228,8 @@ impl State {
                 self.state.panes = pane_info;
                 self.state.cache_mask = UpdateEventMask::Tab as u8;
 
+                self.refresh_claude_icons();
+
                 should_render = true;
             }
             Event::PermissionRequestResult(result) => {
@@ -297,6 +303,8 @@ impl State {
                 self.state.cache_mask = UpdateEventMask::Tab as u8;
                 self.state.tabs = tab_info;
 
+                self.refresh_claude_icons();
+
                 should_render = true;
             }
             Event::Timer(_) => {
@@ -304,11 +312,28 @@ impl State {
                 set_timeout(REFRESH_INTERVAL_SECONDS);
                 self.state.cache_mask = 0;
 
+                self.refresh_claude_icons();
+
                 should_render = true;
             }
             _ => (),
         };
         should_render
+    }
+
+    /// Reload the shared per-session icon map so this instance shows icons set
+    /// before it existed (e.g. on a tab opened later). Bumps the tab cache only
+    /// when the set actually changed, so it can run on every Timer cheaply.
+    fn refresh_claude_icons(&mut self) {
+        let session = match self.state.mode.session_name.clone() {
+            Some(s) => s,
+            None => return,
+        };
+        let fresh = zjstatus::claude_icons::reload(&session);
+        if fresh != self.state.claude_icons {
+            self.state.claude_icons = fresh;
+            self.state.cache_mask = UpdateEventMask::Tab as u8;
+        }
     }
 }
 
