@@ -10,6 +10,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use uuid::Uuid;
+
 const DIR: &str = "/tmp/zjstatus";
 
 /// Filesystem-safe icon-file path for a session (non `[A-Za-z0-9_-]` -> `_`).
@@ -72,7 +74,17 @@ pub fn persist(session: &str, pane_id: u32, value: &str) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let _ = std::fs::write(&path, serialize(&map));
+    // Write to a unique temp file, then atomically rename it over the target.
+    // A plain `fs::write` truncates the file before writing it, so a concurrent
+    // instance (one zjstatus runs per tab, all sharing this file) can read a
+    // half-written file and persist it back, permanently dropping another tab's
+    // icon. The rename is atomic within the directory, so every reader observes
+    // a complete file — either the old contents or the new, never a partial one.
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("icons");
+    let tmp = path.with_file_name(format!("{file_name}.{}.tmp", Uuid::new_v4()));
+    if std::fs::write(&tmp, serialize(&map)).is_ok() && std::fs::rename(&tmp, &path).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
 }
 
 /// Load the shared session icon map (the union across all instances). Returns an
@@ -169,5 +181,45 @@ mod test {
     fn reload_missing_file_is_empty() {
         let map = reload("zjtest_definitely_absent_session");
         assert!(map.is_empty());
+    }
+
+    // Threads are unavailable on wasm32-wasip1 (the default build target), so this
+    // concurrency regression only compiles/runs on the host (`--target
+    // x86_64-unknown-linux-gnu`).
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn concurrent_persist_preserves_an_idle_pane() {
+        // Regression: every per-tab instance re-persists its active pane on each
+        // broadcast status change. A non-atomic write (truncate-then-write) lets a
+        // concurrent reader observe a half-written file and write it back, dropping
+        // an *idle* pane's entry for good (it never re-persists). Atomic temp+rename
+        // keeps every read complete.
+        let session = "zjtest_concurrent_idle";
+        let _ = std::fs::remove_file(icon_file(session));
+
+        persist(session, 999, "✅"); // an idle / finished tab
+        persist(session, 5, "🤖"); //   an active pane
+
+        let handles: Vec<_> = (0..16)
+            .map(|_| {
+                let s = session.to_owned();
+                std::thread::spawn(move || {
+                    for _ in 0..500 {
+                        persist(&s, 5, "🤖");
+                    }
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let map = reload(session);
+        let _ = std::fs::remove_file(icon_file(session));
+        assert_eq!(
+            map.get(&999),
+            Some(&"✅".to_owned()),
+            "idle pane was clobbered by concurrent writers: {map:?}"
+        );
     }
 }
