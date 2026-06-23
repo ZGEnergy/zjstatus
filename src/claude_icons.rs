@@ -142,7 +142,10 @@ pub fn reload(session: &str) -> BTreeMap<u32, String> {
 
 #[cfg(test)]
 mod test {
-    use super::{icon_file, parse, persist, prune, reload, serialize};
+    use super::{icon_file, parse, prune, reload, serialize};
+    // `persist` is only used by tests that touch /tmp, which are gated off wasm.
+    #[cfg(not(target_arch = "wasm32"))]
+    use super::persist;
     use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
@@ -175,6 +178,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))] // touches /tmp; the wasm test sandbox has no fs access
     fn persist_then_reload_roundtrips_through_a_file() {
         let session = "zjtest_persist_reload";
         let _ = std::fs::remove_file(icon_file(session));
@@ -190,6 +194,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))] // touches /tmp; the wasm test sandbox has no fs access
     fn persist_empty_value_clears_one_pane_keeps_others() {
         let session = "zjtest_persist_clear";
         let _ = std::fs::remove_file(icon_file(session));
@@ -206,6 +211,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))] // touches /tmp; the wasm test sandbox has no fs access
     fn persist_does_not_clobber_another_instances_pane() {
         // Two "instances" persist different panes; the read-merge-write must keep
         // both rather than overwrite the file with a single pane.
@@ -222,6 +228,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))] // touches /tmp; the wasm test sandbox has no fs access
     fn prune_removes_dead_pane_entries() {
         // A pane that dies without firing the `exit` hook leaves its `id=value`
         // line behind forever. prune() drops every key whose id is not in the
@@ -258,6 +265,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))] // touches /tmp; the wasm test sandbox has no fs access
     fn persist_sequential_distinct_panes_both_survive() {
         // The honest counterpart to `concurrent_persist_preserves_an_idle_pane`:
         // two instances persisting DISTINCT panes one-after-another (the common,
