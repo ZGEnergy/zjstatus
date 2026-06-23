@@ -5,7 +5,7 @@ use regex::Regex;
 use zellij_tile::prelude::*;
 
 use crate::{
-    border::{parse_border_config, BorderConfig, BorderPosition},
+    border::{BorderConfig, BorderPosition, parse_border_config},
     render::FormattedPart,
     widgets::{command::CommandResult, notification, widget::Widget},
 };
@@ -24,6 +24,10 @@ pub struct ZellijState {
     pub start_time: DateTime<Local>,
     pub incoming_notification: Option<notification::Message>,
     pub cache_mask: u8,
+    /// Per-pane status values pushed via the `claude_status` pipe protocol,
+    /// keyed by pane id. Rendered on the pane's tab via the `{claude_status}`
+    /// placeholder in the tabs widget.
+    pub claude_icons: BTreeMap<u32, String>,
 }
 
 #[derive(Clone, Debug, Ord, Eq, PartialEq, PartialOrd, Copy)]

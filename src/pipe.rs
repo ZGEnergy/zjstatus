@@ -3,7 +3,7 @@ use std::ops::Sub;
 use chrono::{Duration, Local};
 
 use crate::{
-    config::ZellijState,
+    config::{UpdateEventMask, ZellijState},
     widgets::{command::TIMESTAMP_FORMAT, notification},
 };
 
@@ -76,6 +76,19 @@ fn process_line(state: &mut ZellijState, line: &str) -> bool {
 
             should_render = true;
         }
+        "claude_status" => {
+            if parts.len() < 4 {
+                return false;
+            }
+
+            claude_status(state, parts[2], parts[3]);
+
+            // The icon is rendered inside the `{tabs}` widget, so invalidate the
+            // tab cache to force a re-render (the pipe path sets no cache mask).
+            state.cache_mask = UpdateEventMask::Tab as u8;
+
+            should_render = true;
+        }
         _ => {}
     }
 
@@ -87,6 +100,27 @@ fn pipe(state: &mut ZellijState, name: &str, content: &str) {
     state
         .pipe_results
         .insert(name.to_owned(), content.to_owned());
+}
+
+/// Stores a per-pane status value keyed by pane id. An empty value clears the
+/// entry. The value is shown on the pane's tab via the `{claude_status}`
+/// placeholder in the tabs widget.
+fn claude_status(state: &mut ZellijState, pane_id: &str, value: &str) {
+    let Ok(pane_id) = pane_id.parse::<u32>() else {
+        return;
+    };
+
+    if value.is_empty() {
+        state.claude_icons.remove(&pane_id);
+    } else {
+        state.claude_icons.insert(pane_id, value.to_owned());
+    }
+
+    // Mirror to the shared per-session file so tabs opened later (which get a
+    // fresh, empty plugin instance) can converge on the full icon set.
+    if let Some(session) = state.mode.session_name.as_deref() {
+        crate::claude_icons::persist(session, pane_id, value);
+    }
 }
 
 fn notify(state: &mut ZellijState, message: &str) {
@@ -116,4 +150,48 @@ fn rerun_command(state: &mut ZellijState, command_name: &str) {
     state
         .command_results
         .insert(command_name.to_string(), command_result.clone());
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::config::{UpdateEventMask, ZellijState};
+
+    #[test]
+    fn claude_status_pipe_stores_icon_by_pane_id() {
+        let mut state = ZellijState::default();
+
+        let rendered = parse_protocol(&mut state, "zjstatus::claude_status::3::🤖");
+
+        assert!(rendered);
+        assert_eq!(state.claude_icons.get(&3), Some(&"🤖".to_owned()));
+    }
+
+    #[test]
+    fn claude_status_pipe_sets_tab_cache_mask() {
+        let mut state = ZellijState::default();
+
+        parse_protocol(&mut state, "zjstatus::claude_status::7::⏳");
+
+        assert_eq!(state.cache_mask, UpdateEventMask::Tab as u8);
+    }
+
+    #[test]
+    fn claude_status_pipe_empty_value_clears_icon() {
+        let mut state = ZellijState::default();
+        state.claude_icons.insert(3, "🤖".to_owned());
+
+        parse_protocol(&mut state, "zjstatus::claude_status::3::");
+
+        assert_eq!(state.claude_icons.get(&3), None);
+    }
+
+    #[test]
+    fn claude_status_pipe_ignores_non_numeric_pane_id() {
+        let mut state = ZellijState::default();
+
+        parse_protocol(&mut state, "zjstatus::claude_status::abc::🤖");
+
+        assert!(state.claude_icons.is_empty());
+    }
 }

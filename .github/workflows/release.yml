@@ -58,9 +58,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          draft: true
+          draft: false
           body: ${{ steps.git-cliff.outputs.content }}
           prerelease: false
           files: |
             ./target/wasm32-wasip1/release/zjstatus.wasm
             ./target/wasm32-wasip1/release/zjframes.wasm
+            ./examples/gruvbox-claude-status.kdl
+            ./examples/claude-status-setup.sh
+            ./examples/zjstatus-claude-status.sh
