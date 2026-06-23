@@ -20,4 +20,4 @@ case "${1:-}" in
   *)        exit 0 ;;
 esac
 
-zellij pipe --name zjstatus --payload "zjstatus::claude_status::${ZELLIJ_PANE_ID}::${icon}"
+zellij pipe --name zjstatus -- "zjstatus::claude_status::${ZELLIJ_PANE_ID}::${icon}"
