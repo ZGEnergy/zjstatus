@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-shot installer for the ZGEnergy zjstatus fork + per-tab Claude Code status.
 # Idempotent and safe to re-run. Installs the plugin, the Gruvbox layout, and the
-# Claude Code hook, and merges the 4 hook events into ~/.claude/settings.json.
+# Claude Code hook, and merges the Claude Code hook events into ~/.claude/settings.json.
 #
 # Usage:
 #   curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash
@@ -47,7 +47,7 @@ mkdir -p "$HOOKS_DIR"
 curl -fsSL "$REL/zjstatus-claude-status.sh" -o "$HOOKS_DIR/zjstatus-claude-status.sh"
 chmod +x "$HOOKS_DIR/zjstatus-claude-status.sh"
 
-# 4. wire the 4 hook events into settings.json (idempotent JSON merge, keeps your other hooks)
+# 4. wire the hook events into settings.json (idempotent JSON merge, keeps your other hooks)
 say "Wiring hooks into $SETTINGS"
 mkdir -p "$(dirname "$SETTINGS")"
 if [ -f "$SETTINGS" ]; then cp "$SETTINGS" "$SETTINGS.bak.$(date +%Y%m%d%H%M%S)"; fi
@@ -65,19 +65,35 @@ hooks = data.setdefault("hooks", {})
 if not isinstance(hooks, dict):
     hooks = data["hooks"] = {}
 cmd = "$HOME/.claude/hooks/zjstatus-claude-status.sh"
-wire = {"SessionStart": "start", "UserPromptSubmit": "thinking", "Stop": "ready", "SessionEnd": "exit"}
+# (event, arg, matcher) — matcher is None for whole-session events, or a tool
+# name for tool-scoped events. AskUserQuestion is a tool, so it is wired via
+# PreToolUse/PostToolUse (NOT the Notification hook, which is an overloaded
+# ~60s idle nudge that collides with background-standby).
+wire = [
+    ("SessionStart",     "start",    None),
+    ("UserPromptSubmit", "thinking", None),
+    ("PreToolUse",       "asking",   "AskUserQuestion"),
+    ("PostToolUse",      "thinking", "AskUserQuestion"),
+    ("Stop",             "ready",    None),
+    ("SessionEnd",       "exit",     None),
+]
 added = []
-for event, arg in wire.items():
+for event, arg, matcher in wire:
     arr = hooks.get(event)
     if not isinstance(arr, list):
         arr = hooks[event] = []
+    # idempotent: skip if our hook with this same matcher is already present
     present = any(
         isinstance(h, dict) and "zjstatus-claude-status.sh" in str(h.get("command", ""))
+        and entry.get("matcher") == matcher
         for entry in arr if isinstance(entry, dict)
         for h in entry.get("hooks", []) if isinstance(h, dict)
     )
     if not present:
-        arr.append({"hooks": [{"type": "command", "command": f"{cmd} {arg}"}]})
+        entry = {"hooks": [{"type": "command", "command": f"{cmd} {arg}"}]}
+        if matcher:
+            entry["matcher"] = matcher
+        arr.append(entry)
         added.append(event)
 with open(p, "w") as f:
     json.dump(data, f, indent=2)

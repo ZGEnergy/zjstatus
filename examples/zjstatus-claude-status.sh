@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Sends Claude Code status to zjstatus's {claude_status} placeholder.
 #
-# Usage: zjstatus-claude-status.sh <start|thinking|ready|exit>
+# Usage: zjstatus-claude-status.sh <start|thinking|asking|ready|exit>
 #   start    -> 🤖 (session running)
-#   thinking -> ⏳ (prompt submitted)
+#   thinking -> ⏳ (working: prompt submitted / resumed after a question)
+#   asking   -> ❓ (blocking on an AskUserQuestion — needs your answer)
 #   ready    -> ✅ (stopped, awaiting input)
 #   exit     -> (empty, clears the tab's icon)
 set -euo pipefail
@@ -15,6 +16,7 @@ cat > /dev/null   # drain the hook's JSON stdin
 case "${1:-}" in
   start)    icon="🤖" ;;
   thinking) icon="⏳" ;;
+  asking)   icon="❓" ;;
   ready)    icon="✅" ;;
   exit)     icon="" ;;     # empty value clears the icon for this pane
   *)        exit 0 ;;
