@@ -75,6 +75,9 @@ wire = [
     ("PreToolUse",       "asking",   "AskUserQuestion"),
     ("PostToolUse",      "thinking", "AskUserQuestion"),
     ("Stop",             "ready",    None),
+    # StopFailure: turn ended via API error. Reconcile the icon (✅/⚙) too, so a
+    # background task outliving an errored turn is still reflected.
+    ("StopFailure",      "ready",    None),
     ("SessionEnd",       "exit",     None),
 ]
 added = []
