@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# One-shot installer for the ZGEnergy zjstatus fork + per-tab Claude Code status.
-# Idempotent and safe to re-run. Installs the plugin, the Gruvbox layout, and the
-# Claude Code hook, and merges the Claude Code hook events into ~/.claude/settings.json.
+# One-shot installer for the ZGEnergy zjstatus fork + per-tab status icons.
+# Idempotent and safe to re-run. Installs the plugin and the Gruvbox layout.
+# For Claude Code: installs the producer hook and wires events into ~/.claude/settings.json.
+# For omp: installs the extension into ~/.omp/agent/extensions/ (auto-discovered).
 #
 # Usage:
 #   curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash
 #   # with keybinding hints:
 #   curl -fsSL .../claude-status-setup.sh | bash -s -- --with-hints
+#   # with omp extension instead of (or alongside) Claude Code hooks:
+#   curl -fsSL .../claude-status-setup.sh | bash -s -- --omp
+#   curl -fsSL .../claude-status-setup.sh | bash -s -- --omp --with-hints
 #
 # After it finishes, open a NEW zellij session and approve the plugin permission.
 set -euo pipefail
@@ -17,8 +21,15 @@ PLUGINS="$HOME/.config/zellij/plugins"
 LAYOUTS="$HOME/.config/zellij/layouts"
 HOOKS_DIR="$HOME/.claude/hooks"
 SETTINGS="$HOME/.claude/settings.json"
+OMP_EXT_DIR="$HOME/.omp/agent/extensions"
 WITH_HINTS=0
-[ "${1:-}" = "--with-hints" ] && WITH_HINTS=1
+WITH_OMP=0
+for arg in "$@"; do
+  case "$arg" in
+    --with-hints) WITH_HINTS=1 ;;
+    --omp)        WITH_OMP=1 ;;
+  esac
+done
 
 say()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -104,7 +115,25 @@ with open(p, "w") as f:
 print("  added:" , ", ".join(added) if added else "(nothing — already wired)")
 PY
 
-# 5. optional keybinding hints
+# 5. omp extension (optional, --omp)
+if [ "$WITH_OMP" = 1 ]; then
+  say "Installing omp extension -> $OMP_EXT_DIR/zellij-status.ts"
+  mkdir -p "$OMP_EXT_DIR"
+  curl -fsSL "$REL/zjstatus-claude-status-omp.ts" -o "$OMP_EXT_DIR/zellij-status.ts"
+  cat <<'EOS'
+
+  [omp] The extension is auto-discovered from ~/.omp/agent/extensions/. No
+  settings wiring needed — omp loads it on the next session start.
+
+  Events mapped (omp → icon):
+    session_start     🤖    turn_end (idle)      ✅
+    turn_start        ⏳     turn_end (pending)    ⚙
+    tool_call(ask)    ❓    session_shutdown      (clear)
+    tool_result(ask)  ⏳
+EOS
+fi
+
+# 6. optional keybinding hints
 if [ "$WITH_HINTS" = 1 ]; then
   say "Installing zjstatus-hints.wasm"
   curl -fsSL "$HINTS_REL/zjstatus-hints.wasm" -o "$PLUGINS/zjstatus-hints.wasm"
@@ -126,7 +155,7 @@ if [ "$WITH_HINTS" = 1 ]; then
 EOS
 fi
 
-# 6. detect the old rename-API plugin and warn (does not auto-remove)
+# 7. detect the old rename-API plugin and warn (does not auto-remove)
 OLD=0
 for f in "$HOME/.config/zellij/config.kdl" "$SETTINGS" "$LAYOUTS"/*.kdl; do
   if [ -f "$f" ] && grep -q 'zellij-claude-status' "$f" 2>/dev/null; then
@@ -145,4 +174,8 @@ EOS
 fi
 
 say "Done. Open a NEW zellij session and approve the plugin permission prompt."
-say "Tweak datetime_timezone in $DEF to your zone."
+if [ "$WITH_OMP" = 1 ]; then
+  say "omp extension installed — start a new omp session to activate."
+else
+  say "Tweak datetime_timezone in $DEF to your zone."
+fi

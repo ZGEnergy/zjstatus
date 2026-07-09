@@ -176,6 +176,42 @@ load_plugins {
 }
 ```
 
+## 🤖 Per-tab agent status (ZGEnergy fork)
+
+This fork adds a `{claude_status}` tab-format placeholder that renders a
+per-tab icon reflecting the state of the coding agent running in that tab. It
+works with **Claude Code** (via hooks) and **omp / oh-my-pi** (via an
+extension) — both drive the same icons through the same `zjstatus` pipe.
+
+One-command install (plugin + Gruvbox layout + Claude Code hooks):
+
+```bash
+curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash
+```
+
+For omp instead of (or alongside) Claude Code, add `--omp` — it drops the
+extension into `~/.omp/agent/extensions/` (auto-discovered, no wiring needed):
+
+```bash
+curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash -s -- --omp
+```
+
+Then open a **new** zellij session and approve the plugin permission prompt.
+
+| Icon | State |
+|------|-------|
+| 🤖 | session running |
+| ⏳ | agent working (or retrying after an API error) |
+| ❓ | waiting on your input |
+| ✅ | turn done, idle |
+| ⚙ | turn done, background/queued work still pending |
+| _(cleared)_ | session ended |
+
+Details, the layout, and the raw producer hook / extension live in
+[`examples/`](./examples): `gruvbox-claude-status.kdl` (layout with
+`{claude_status}`), `zjstatus-claude-status.sh` (Claude Code hook), and
+`zjstatus-claude-status-omp.ts` (omp extension).
+
 ## 🧱 Widgets
 
 The documentation for the widgets can be found in the [wiki](https://github.com/dj95/zjstatus/wiki/4-%E2%80%90-Widgets).
