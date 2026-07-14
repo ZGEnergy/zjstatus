@@ -68,3 +68,4 @@ jobs:
             ./examples/claude-status-setup.sh
             ./examples/zjstatus-claude-status.sh
             ./examples/zjstatus-claude-status-omp.ts
+            ./examples/omp-status-logic.mts
