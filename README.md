@@ -189,8 +189,8 @@ One-command install (plugin + Gruvbox layout + Claude Code hooks):
 curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash
 ```
 
-For omp instead of (or alongside) Claude Code, add `--omp` — it drops the
-extension into `~/.omp/agent/extensions/` (auto-discovered, no wiring needed):
+For omp alongside Claude Code, add `--omp` — it also installs the extension and
+its helper module into `~/.omp/agent/extensions/` (auto-discovered, no wiring needed):
 
 ```bash
 curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash -s -- --omp

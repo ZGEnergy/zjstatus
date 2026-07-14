@@ -8,7 +8,7 @@
 #   curl -fsSL https://github.com/ZGEnergy/zjstatus/releases/latest/download/claude-status-setup.sh | bash
 #   # with keybinding hints:
 #   curl -fsSL .../claude-status-setup.sh | bash -s -- --with-hints
-#   # with omp extension instead of (or alongside) Claude Code hooks:
+#   # additionally install the omp extension:
 #   curl -fsSL .../claude-status-setup.sh | bash -s -- --omp
 #   curl -fsSL .../claude-status-setup.sh | bash -s -- --omp --with-hints
 #
@@ -120,6 +120,7 @@ if [ "$WITH_OMP" = 1 ]; then
   say "Installing omp extension -> $OMP_EXT_DIR/zellij-status.ts"
   mkdir -p "$OMP_EXT_DIR"
   curl -fsSL "$REL/zjstatus-claude-status-omp.ts" -o "$OMP_EXT_DIR/zellij-status.ts"
+  curl -fsSL "$REL/omp-status-logic.mts" -o "$OMP_EXT_DIR/omp-status-logic.mts"
   cat <<'EOS'
 
   [omp] The extension is auto-discovered from ~/.omp/agent/extensions/. No
