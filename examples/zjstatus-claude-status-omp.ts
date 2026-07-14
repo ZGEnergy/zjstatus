@@ -3,6 +3,7 @@ import { AsyncJobManager } from "@oh-my-pi/pi-coding-agent/async";
 
 import {
   applyAsyncDetails,
+  detailsFromExecutionUpdate,
   iconForAskPhase,
   iconForSessionEvent,
   iconForTurnEnd,
@@ -59,7 +60,7 @@ export default function zellijStatus(pi: ExtensionAPI): void {
     recordAsyncDetails(event.toolName, event.details);
   });
   pi.on("tool_execution_update", async (event) => {
-    recordAsyncDetails(event.toolName, event.partialResult);
+    recordAsyncDetails(event.toolName, detailsFromExecutionUpdate(event.partialResult));
   });
   pi.on("turn_end", async (_event, ctx) => {
     const manager = AsyncJobManager.instance();

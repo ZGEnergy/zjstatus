@@ -15,6 +15,14 @@ type AsyncDetails = {
   };
 };
 
+export function detailsFromExecutionUpdate(partialResult: unknown): unknown {
+  if (typeof partialResult !== "object" || partialResult === null || !("details" in partialResult)) {
+    return undefined;
+  }
+
+  return (partialResult as { details?: unknown }).details;
+}
+
 export function iconForAskPhase(phase: AskPhase): "❓" | "⏳" {
   return phase === "call" ? "❓" : "⏳";
 }

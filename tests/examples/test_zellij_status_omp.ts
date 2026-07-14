@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 
 import {
   applyAsyncDetails,
+  detailsFromExecutionUpdate,
   iconForAskPhase,
   iconForSessionEvent,
   iconForTurnEnd,
@@ -40,4 +41,14 @@ applyAsyncDetails(runningJobs, { async: { state: "running", jobId: "task-1", typ
 applyAsyncDetails(runningJobs, { async: { state: "failed", jobId: "task-1", type: "task" } });
 assert.equal(runningJobs.size, 0);
 
+const updateJobs = new Set<string>();
+applyAsyncDetails(updateJobs, { async: { state: "running", jobId: "bash-2", type: "bash" } });
+applyAsyncDetails(
+  updateJobs,
+  detailsFromExecutionUpdate({
+    content: [],
+    details: { async: { state: "completed", jobId: "bash-2", type: "bash" } },
+  }),
+);
+assert.equal(updateJobs.size, 0);
 console.log("OMP status logic tests passed");
